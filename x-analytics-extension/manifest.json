@@ -22,7 +22,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "matches": [
+        "https://x.com/i/account_analytics/*",
+        "https://x.com/*/status/*",
+        "https://twitter.com/*/status/*"
+      ],
       "js": ["content.js"],
       "css": ["content.css"]
     }

@@ -780,7 +780,7 @@ function saveAnalyticsFromExtension(data) {
   const newRow = [
     dateStr,                           // 日付
     '',                                // 種類（手動入力）
-    '',                                // ツイート本文（後で取得）
+    data.tweetText || '',              // ツイート本文
     impressions,                       // インプ数
     data.likes || 0,                   // いいね数
     profileClicks,                     // プロフクリック数

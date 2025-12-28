@@ -20,6 +20,7 @@ function showStatus(message, type = 'info') {
 function displayData(data) {
   document.getElementById('accountId').textContent = data.accountId || '-';
   document.getElementById('postId').textContent = data.postId || '-';
+  document.getElementById('tweetText').textContent = data.tweetText || '-';
   document.getElementById('impressions').textContent = formatNumber(data.impressions);
   document.getElementById('likes').textContent = formatNumber(data.likes);
   document.getElementById('reposts').textContent = formatNumber(data.reposts);
@@ -46,8 +47,12 @@ async function collectData() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    if (!tab.url.match(/(?:x\.com|twitter\.com)\/[^\/]+\/status\/\d+/)) {
-      showStatus('ツイートページを開いてください', 'error');
+    // Analytics ページまたはツイートページをチェック
+    const isAnalyticsPage = tab.url.match(/x\.com\/i\/account_analytics\/content\/\d+/);
+    const isStatusPage = tab.url.match(/(?:x\.com|twitter\.com)\/[^\/]+\/status\/\d+/);
+
+    if (!isAnalyticsPage && !isStatusPage) {
+      showStatus('Analytics ページまたはツイートページを開いてください', 'error');
       dataSectionEl.classList.add('hidden');
       return;
     }
