@@ -1,0 +1,8 @@
+# Chrome拡張機能
+x-analytics-extension/**
+
+# その他
+node_modules/**
+.git/**
+README.md
+.gitignore

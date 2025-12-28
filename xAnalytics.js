@@ -296,7 +296,8 @@ function getOrCreateMonthlySheet(ss, username, date) {
       'フォロー率判定',
       'フォロワー増加数（日）',
       'フォロワー増加数（週）',
-      'ツイートURL'
+      'ツイートURL',
+      'ポストID'
     ];
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
@@ -696,4 +697,188 @@ function recalculateMetrics() {
 
     Logger.log(`指標を再計算しました: ${sheetName}`);
   });
+}
+
+// ========== Web API ==========
+
+/**
+ * Chrome拡張機能からのPOSTリクエストを処理
+ * Web Appとしてデプロイ後に使用
+ */
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const result = saveAnalyticsFromExtension(data);
+
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * GETリクエスト（テスト用）
+ */
+function doGet(e) {
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'ok', message: 'X Analytics API is running' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * 拡張機能から受け取ったAnalyticsデータを保存
+ */
+function saveAnalyticsFromExtension(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // アカウントIDの検証
+  if (!data.accountId) {
+    return { success: false, error: 'アカウントIDがありません' };
+  }
+
+  // ポストIDの検証
+  if (!data.postId) {
+    return { success: false, error: 'ポストIDがありません' };
+  }
+
+  // 設定シートに登録されているアカウントか確認
+  const registeredAccounts = getAccountList(ss);
+  if (!registeredAccounts.includes(data.accountId)) {
+    // 登録されていない場合は警告を返すが、処理は続行
+    Logger.log(`警告: ${data.accountId} は設定シートに登録されていません`);
+  }
+
+  // 月別シートを取得または作成
+  const now = new Date();
+  const sheet = getOrCreateMonthlySheet(ss, data.accountId, now);
+
+  // 既存のポストIDを確認（重複防止）
+  const existingPostIds = getExistingPostIds(sheet);
+  if (existingPostIds.has(data.postId)) {
+    // 既存データを更新
+    return updateExistingPost(sheet, data, existingPostIds.get(data.postId));
+  }
+
+  // 新規データを追加
+  const dateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd');
+
+  // プロクリ率計算
+  const impressions = data.impressions || 0;
+  const profileClicks = data.profileClicks || 0;
+  const profileClickRate = impressions > 0 ? profileClicks / impressions : 0;
+  const profileClickRateJudgment = getJudgment(profileClickRate, PROFILE_CLICK_RATE_THRESHOLDS);
+
+  // フォロー率計算（新規フォロー / プロフクリック）
+  const newFollows = data.newFollows || 0;
+  const followRate = profileClicks > 0 ? newFollows / profileClicks : 0;
+  const followRateJudgment = getJudgment(followRate, FOLLOW_RATE_THRESHOLDS);
+
+  const newRow = [
+    dateStr,                           // 日付
+    '',                                // 種類（手動入力）
+    '',                                // ツイート本文（後で取得）
+    impressions,                       // インプ数
+    data.likes || 0,                   // いいね数
+    profileClicks,                     // プロフクリック数
+    0,                                 // 詳細クリック
+    profileClickRate,                  // プロクリ率
+    profileClickRateJudgment,          // プロクリ判定
+    data.reposts || 0,                 // RT数
+    data.replies || 0,                 // リプ数
+    0,                                 // リプした数（手動入力）
+    0,                                 // フォロワー数（後で取得）
+    followRate,                        // フォロー率
+    followRateJudgment,                // フォロー率判定
+    newFollows,                        // フォロワー増加数（日）= 新規フォロー
+    0,                                 // フォロワー増加数（週）
+    data.url || `https://x.com/${data.accountId}/status/${data.postId}`,  // ツイートURL
+    data.postId                        // ポストID（追加列）
+  ];
+
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow + 1, 1, 1, newRow.length).setValues([newRow]);
+
+  // フォーマット設定
+  formatDataSheet(sheet, lastRow + 1, 1);
+
+  return {
+    success: true,
+    message: `データを保存しました: ${data.accountId}/${data.postId}`,
+    sheetName: sheet.getName()
+  };
+}
+
+/**
+ * 既存のポストIDを取得（行番号とセットで）
+ */
+function getExistingPostIds(sheet) {
+  const lastRow = sheet.getLastRow();
+  const postIds = new Map();
+
+  if (lastRow > 1) {
+    // 19列目にポストIDがある想定（なければURLから抽出）
+    const numCols = sheet.getLastColumn();
+
+    if (numCols >= 19) {
+      // ポストID列がある場合
+      const idColumn = sheet.getRange(2, 19, lastRow - 1, 1).getValues();
+      idColumn.forEach((row, index) => {
+        if (row[0]) {
+          postIds.set(row[0].toString(), index + 2);
+        }
+      });
+    }
+
+    // URLからもポストIDを抽出（フォールバック）
+    if (numCols >= 18) {
+      const urlColumn = sheet.getRange(2, 18, lastRow - 1, 1).getValues();
+      urlColumn.forEach((row, index) => {
+        if (row[0]) {
+          const match = row[0].toString().match(/status\/(\d+)/);
+          if (match && !postIds.has(match[1])) {
+            postIds.set(match[1], index + 2);
+          }
+        }
+      });
+    }
+  }
+
+  return postIds;
+}
+
+/**
+ * 既存のポストデータを更新
+ */
+function updateExistingPost(sheet, data, rowIndex) {
+  // 更新する列のみ上書き
+  const impressions = data.impressions || 0;
+  const profileClicks = data.profileClicks || 0;
+
+  sheet.getRange(rowIndex, 4).setValue(impressions);           // インプ数
+  sheet.getRange(rowIndex, 5).setValue(data.likes || 0);       // いいね数
+  sheet.getRange(rowIndex, 6).setValue(profileClicks);         // プロフクリック数
+  sheet.getRange(rowIndex, 10).setValue(data.reposts || 0);    // RT数
+  sheet.getRange(rowIndex, 11).setValue(data.replies || 0);    // リプ数
+  sheet.getRange(rowIndex, 16).setValue(data.newFollows || 0); // 新規フォロー
+
+  // プロクリ率再計算
+  const profileClickRate = impressions > 0 ? profileClicks / impressions : 0;
+  sheet.getRange(rowIndex, 8).setValue(profileClickRate);
+  sheet.getRange(rowIndex, 9).setValue(getJudgment(profileClickRate, PROFILE_CLICK_RATE_THRESHOLDS));
+
+  // フォロー率再計算
+  const newFollows = data.newFollows || 0;
+  const followRate = profileClicks > 0 ? newFollows / profileClicks : 0;
+  sheet.getRange(rowIndex, 14).setValue(followRate);
+  sheet.getRange(rowIndex, 15).setValue(getJudgment(followRate, FOLLOW_RATE_THRESHOLDS));
+
+  return {
+    success: true,
+    message: `データを更新しました: ${data.accountId}/${data.postId}`,
+    updated: true
+  };
 }
