@@ -4,10 +4,7 @@
 // =============================================
 
 // シートID
-// 開発用
-const SHEET_TINSALO = "1qoMLt0l2C4p5X2Z7hJxjvIKBvI9I_VG48SVVoPCzGG8";
-// 本番用（コメントアウト）
-// const SHEET_TINSALO = "1CDLY39QuWYcMrZKjRYqUCHqglqh7-PVTlL0LEwiGGzQ";
+const SHEET_TINSALO = "1SF4IBNl_7zD560zpt0Q0rq8WknVOxerYz1kuCfhcoUE";
 
 // シート名
 const SHEET_NAME_TOP10 = "昨日のTOP10";

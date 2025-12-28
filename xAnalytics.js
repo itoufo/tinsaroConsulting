@@ -25,6 +25,7 @@
  */
 
 // ========== 定数 ==========
+const SPREADSHEET_ID = '1SF4IBNl_7zD560zpt0Q0rq8WknVOxerYz1kuCfhcoUE';
 const SHEET_NAME_SETTINGS = '設定';
 const SHEET_NAME_MANUAL = 'マニュアル';
 
@@ -47,7 +48,7 @@ const FOLLOW_RATE_THRESHOLDS = {
  * 毎日実行用の関数（トリガーで呼び出し）
  */
 function dailyFetch() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   initializeSheets(ss);
 
   const usernames = getAccountList(ss);
@@ -78,7 +79,7 @@ function dailyFetch() {
  * 初回実行用（過去7日分を取得）
  */
 function initialFetch() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   initializeSheets(ss);
 
   const usernames = getAccountList(ss);
@@ -119,7 +120,7 @@ function manualFetch() {
  * マニュアルシートと設定シートを作成します
  */
 function initialize() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   initializeSheets(ss);
   Logger.log('初期化が完了しました。設定シートにアカウント名を入力してください。');
 }
@@ -659,7 +660,7 @@ function setBearerToken() {
  * X Analyticsからデータをコピペした後に実行
  */
 function recalculateMetrics() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sheets = ss.getSheets();
 
   sheets.forEach(sheet => {
