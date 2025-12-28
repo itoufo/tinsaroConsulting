@@ -115,6 +115,16 @@ function manualFetch() {
 // ========== シート初期化 ==========
 
 /**
+ * 初期化（最初に実行してください）
+ * マニュアルシートと設定シートを作成します
+ */
+function initialize() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  initializeSheets(ss);
+  Logger.log('初期化が完了しました。設定シートにアカウント名を入力してください。');
+}
+
+/**
  * シートを初期化（設定・マニュアル）
  */
 function initializeSheets(ss) {
@@ -177,8 +187,9 @@ function initializeManualSheet(ss) {
     ['   - 時刻を選択: お好みの時刻'],
     [''],
     ['【実行関数】'],
+    ['・initialize: 初期設定（最初に実行）- マニュアル・設定シートを作成'],
     ['・dailyFetch: 過去24時間のツイートを取得（毎日実行用）'],
-    ['・initialFetch: 過去7日分のツイートを取得（初回実行用）'],
+    ['・initialFetch: 過去7日分のツイートを取得（初回データ取得用）'],
     ['・manualFetch: dailyFetch と同じ（手動テスト用）'],
     ['・recalculateMetrics: プロクリ率・フォロー率を再計算'],
     ['・setBearerToken: ダイアログからBearer Tokenを設定'],
