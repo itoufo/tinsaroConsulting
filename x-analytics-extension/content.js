@@ -84,27 +84,8 @@ function scrapeAnalyticsData() {
     detailClicks: null      // 詳細クリック
   };
 
-  // まず __INITIAL_STATE__ から取得を試みる
-  const stateData = getDataFromInitialState();
-  if (stateData) {
-    console.log('[X-Analytics] Using data from __INITIAL_STATE__');
-    if (stateData.impressions !== undefined) data.impressions = stateData.impressions;
-    if (stateData.profileClicks !== undefined) data.profileClicks = stateData.profileClicks;
-    if (stateData.likes !== undefined) data.likes = stateData.likes;
-    if (stateData.replies !== undefined) data.replies = stateData.replies;
-    if (stateData.reposts !== undefined) data.reposts = stateData.reposts;
-    if (stateData.newFollows !== undefined) data.newFollows = stateData.newFollows;
-    if (stateData.bookmarks !== undefined) data.bookmarks = stateData.bookmarks;
-    if (stateData.shares !== undefined) data.shares = stateData.shares;
-
-    // 全てのデータが取れていればスクレイピングをスキップ
-    if (data.impressions !== null && data.profileClicks !== null) {
-      console.log('[X-Analytics] Got complete data from __INITIAL_STATE__:', data);
-      return data;
-    }
-  }
-
-  console.log('[X-Analytics] Falling back to DOM scraping');
+  // __INITIAL_STATE__ にはツイートアナリティクスデータがないため、DOMスクレイピングを使用
+  console.log('[X-Analytics] Using DOM scraping (K/M suffix supported)');
 
   // ラベルとデータのマッピング
   const labelMap = {
