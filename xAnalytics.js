@@ -731,17 +731,22 @@ function doPost(e) {
  */
 function doGet(e) {
   try {
+    Logger.log('doGet called with params: ' + JSON.stringify(e.parameter));
+
     const action = e.parameter.action;
 
     if (action === 'getTweets') {
       const username = e.parameter.username;
       const days = parseInt(e.parameter.days) || 7;
 
+      Logger.log('getTweets: username=' + username + ', days=' + days);
+
       if (!username) {
         return jsonResponse({ success: false, error: 'username is required' });
       }
 
       const result = getTweetsForExtension(username, days);
+      Logger.log('getTweetsForExtension result: ' + JSON.stringify(result));
       return jsonResponse(result);
     }
 
@@ -753,7 +758,8 @@ function doGet(e) {
 
     return jsonResponse({ status: 'ok', message: 'X Analytics API is running' });
   } catch (error) {
-    return jsonResponse({ success: false, error: error.message });
+    Logger.log('doGet error: ' + error.toString() + ' | Stack: ' + error.stack);
+    return jsonResponse({ success: false, error: error.message || error.toString() });
   }
 }
 
@@ -771,11 +777,17 @@ function jsonResponse(data) {
  */
 function getTweetsForExtension(username, days) {
   try {
+    Logger.log('getTweetsForExtension: start - username=' + username + ', days=' + days);
+
     const userId = getUserId(username);
+    Logger.log('getTweetsForExtension: userId=' + userId);
+
     const now = new Date();
     const startTime = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    Logger.log('getTweetsForExtension: startTime=' + startTime.toISOString() + ', endTime=' + now.toISOString());
 
     const tweets = getTweets(userId, startTime, now);
+    Logger.log('getTweetsForExtension: got ' + (tweets ? tweets.length : 0) + ' tweets');
 
     // Analytics URL付きのリストを作成
     const tweetList = tweets.map(tweet => {
@@ -790,6 +802,8 @@ function getTweetsForExtension(username, days) {
       };
     });
 
+    Logger.log('getTweetsForExtension: returning ' + tweetList.length + ' tweets');
+
     return {
       success: true,
       username: username,
@@ -797,7 +811,8 @@ function getTweetsForExtension(username, days) {
       tweets: tweetList
     };
   } catch (error) {
-    return { success: false, error: error.message };
+    Logger.log('getTweetsForExtension error: ' + error.toString() + ' | Stack: ' + error.stack);
+    return { success: false, error: error.message || error.toString() };
   }
 }
 
