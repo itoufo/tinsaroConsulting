@@ -250,26 +250,13 @@ function scrapeAnalyticsData() {
     detailClicks: null      // 詳細クリック
   };
 
-  // まずキャプチャしたAPIデータを確認
+  // キャプチャしたAPIデータを確認（後でマージ用）
   const apiData = getCapturedApiData();
-  if (apiData && apiData.impressions !== undefined) {
-    console.log('[X-Analytics] Using captured API data (raw numbers):', apiData);
-    return {
-      impressions: apiData.impressions,
-      likes: apiData.likes,
-      replies: apiData.replies,
-      reposts: apiData.reposts,
-      engagementRate: null,
-      profileClicks: apiData.profileClicks,
-      newFollows: apiData.newFollows,
-      bookmarks: apiData.bookmarks,
-      shares: apiData.shares,
-      mediaViews: apiData.videoViews,
-      detailClicks: apiData.detailClicks
-    };
+  if (apiData) {
+    console.log('[X-Analytics] API data available for merge:', apiData);
   }
 
-  console.log('[X-Analytics] No API data captured, using DOM scraping (K/M suffix supported)');
+  console.log('[X-Analytics] Scraping DOM (K/M suffix → number conversion)');
 
   // ラベルとデータのマッピング
   const labelMap = {
@@ -369,6 +356,29 @@ function scrapeAnalyticsData() {
         }
       }
     });
+  }
+
+  console.log('[X-Analytics] DOM scraped data:', data);
+
+  // APIデータとマージ（APIの生の数値を優先、スクレイピングで補完）
+  if (apiData) {
+    const merged = {
+      // APIデータを優先（生の数値）、なければスクレイピング値
+      impressions: apiData.impressions ?? data.impressions,
+      likes: apiData.likes ?? data.likes,
+      replies: apiData.replies ?? data.replies,
+      reposts: apiData.reposts ?? data.reposts,
+      bookmarks: apiData.bookmarks ?? data.bookmarks,
+      shares: apiData.shares ?? data.shares,
+      detailClicks: apiData.detailClicks ?? data.detailClicks,
+      newFollows: apiData.newFollows ?? data.newFollows,
+      mediaViews: apiData.videoViews ?? data.mediaViews,
+      // スクレイピングのみ（APIにないことが多い）
+      profileClicks: apiData.profileClicks ?? data.profileClicks,
+      engagementRate: data.engagementRate
+    };
+    console.log('[X-Analytics] Merged data (API + DOM):', merged);
+    return merged;
   }
 
   return data;
