@@ -84,6 +84,28 @@ function scrapeAnalyticsData() {
     detailClicks: null      // 詳細クリック
   };
 
+  // まず __INITIAL_STATE__ から取得を試みる
+  const stateData = getDataFromInitialState();
+  if (stateData) {
+    console.log('[X-Analytics] Using data from __INITIAL_STATE__');
+    if (stateData.impressions !== undefined) data.impressions = stateData.impressions;
+    if (stateData.profileClicks !== undefined) data.profileClicks = stateData.profileClicks;
+    if (stateData.likes !== undefined) data.likes = stateData.likes;
+    if (stateData.replies !== undefined) data.replies = stateData.replies;
+    if (stateData.reposts !== undefined) data.reposts = stateData.reposts;
+    if (stateData.newFollows !== undefined) data.newFollows = stateData.newFollows;
+    if (stateData.bookmarks !== undefined) data.bookmarks = stateData.bookmarks;
+    if (stateData.shares !== undefined) data.shares = stateData.shares;
+
+    // 全てのデータが取れていればスクレイピングをスキップ
+    if (data.impressions !== null && data.profileClicks !== null) {
+      console.log('[X-Analytics] Got complete data from __INITIAL_STATE__:', data);
+      return data;
+    }
+  }
+
+  console.log('[X-Analytics] Falling back to DOM scraping');
+
   // ラベルとデータのマッピング
   const labelMap = {
     'インプレッション': 'impressions',
@@ -189,6 +211,7 @@ function scrapeAnalyticsData() {
 
 /**
  * 値をパース（数値、パーセント、"-"など）
+ * K = 1000, M = 1000000 に対応
  */
 function parseValue(value) {
   if (!value || value === '-') {
@@ -200,11 +223,110 @@ function parseValue(value) {
     return value; // そのまま文字列で返す
   }
 
-  // カンマ区切りの数値
-  const num = value.replace(/,/g, '');
-  const parsed = parseInt(num, 10);
+  // カンマ区切りを除去
+  let cleanValue = value.replace(/,/g, '').trim();
 
+  // K/M サフィックスの処理
+  const kMatch = cleanValue.match(/^([\d.]+)\s*[Kk]$/);
+  if (kMatch) {
+    return Math.round(parseFloat(kMatch[1]) * 1000);
+  }
+
+  const mMatch = cleanValue.match(/^([\d.]+)\s*[Mm]$/);
+  if (mMatch) {
+    return Math.round(parseFloat(mMatch[1]) * 1000000);
+  }
+
+  const parsed = parseInt(cleanValue, 10);
   return isNaN(parsed) ? value : parsed;
+}
+
+/**
+ * window.__INITIAL_STATE__ からデータを取得
+ */
+function getDataFromInitialState() {
+  try {
+    // scriptタグから __INITIAL_STATE__ を探す
+    const scripts = document.querySelectorAll('script');
+    let initialState = null;
+
+    for (const script of scripts) {
+      const text = script.textContent || '';
+      const match = text.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:window\.|<\/script>|$)/);
+      if (match) {
+        try {
+          initialState = JSON.parse(match[1]);
+          break;
+        } catch (e) {
+          console.log('[X-Analytics] Failed to parse __INITIAL_STATE__:', e);
+        }
+      }
+    }
+
+    // グローバル変数からも試す
+    if (!initialState && window.__INITIAL_STATE__) {
+      initialState = window.__INITIAL_STATE__;
+    }
+
+    if (!initialState) {
+      console.log('[X-Analytics] __INITIAL_STATE__ not found');
+      return null;
+    }
+
+    console.log('[X-Analytics] Found __INITIAL_STATE__');
+
+    // Analytics データを探す
+    // contentAnalytics または tweetAnalytics などのキーを探す
+    const analyticsData = findAnalyticsData(initialState);
+
+    if (analyticsData) {
+      console.log('[X-Analytics] Found analytics data:', analyticsData);
+      return analyticsData;
+    }
+
+    return null;
+  } catch (error) {
+    console.log('[X-Analytics] Error getting __INITIAL_STATE__:', error);
+    return null;
+  }
+}
+
+/**
+ * __INITIAL_STATE__ 内からアナリティクスデータを再帰的に探す
+ */
+function findAnalyticsData(obj, depth = 0) {
+  if (depth > 10 || !obj || typeof obj !== 'object') return null;
+
+  // analytics関連のキーを探す
+  const analyticsKeys = ['contentAnalytics', 'tweetAnalytics', 'analytics', 'metrics', 'organic_metrics'];
+
+  for (const key of analyticsKeys) {
+    if (obj[key]) {
+      return obj[key];
+    }
+  }
+
+  // impressions や profileClicks が直接あるか
+  if (obj.impressions !== undefined || obj.impressionCount !== undefined) {
+    return {
+      impressions: obj.impressions || obj.impressionCount,
+      profileClicks: obj.profileClicks || obj.profileClickCount || obj.user_profile_clicks,
+      likes: obj.likes || obj.likeCount || obj.favorite_count,
+      replies: obj.replies || obj.replyCount || obj.reply_count,
+      reposts: obj.reposts || obj.retweetCount || obj.retweet_count,
+      newFollows: obj.newFollows || obj.follows || obj.follow_count
+    };
+  }
+
+  // 再帰的に探す
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const result = findAnalyticsData(obj[key], depth + 1);
+      if (result) return result;
+    }
+  }
+
+  return null;
 }
 
 /**
