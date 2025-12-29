@@ -292,6 +292,24 @@ function getDataFromInitialState() {
 }
 
 /**
+ * 値を数値に変換（オブジェクトの場合はvalue等を探す）
+ */
+function extractNumber(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') return parseValue(val);
+  if (typeof val === 'object') {
+    // { value: 123 } や { count: 123 } のようなオブジェクト
+    if (val.value !== undefined) return extractNumber(val.value);
+    if (val.count !== undefined) return extractNumber(val.count);
+    if (val.total !== undefined) return extractNumber(val.total);
+    // 配列の場合は最初の要素
+    if (Array.isArray(val) && val.length > 0) return extractNumber(val[0]);
+  }
+  return null;
+}
+
+/**
  * __INITIAL_STATE__ 内からアナリティクスデータを再帰的に探す
  */
 function findAnalyticsData(obj, depth = 0) {
@@ -302,20 +320,15 @@ function findAnalyticsData(obj, depth = 0) {
 
   for (const key of analyticsKeys) {
     if (obj[key]) {
-      return obj[key];
+      console.log('[X-Analytics] Found key:', key, obj[key]);
+      return normalizeAnalyticsData(obj[key]);
     }
   }
 
   // impressions や profileClicks が直接あるか
   if (obj.impressions !== undefined || obj.impressionCount !== undefined) {
-    return {
-      impressions: obj.impressions || obj.impressionCount,
-      profileClicks: obj.profileClicks || obj.profileClickCount || obj.user_profile_clicks,
-      likes: obj.likes || obj.likeCount || obj.favorite_count,
-      replies: obj.replies || obj.replyCount || obj.reply_count,
-      reposts: obj.reposts || obj.retweetCount || obj.retweet_count,
-      newFollows: obj.newFollows || obj.follows || obj.follow_count
-    };
+    console.log('[X-Analytics] Found impressions directly in object:', obj);
+    return normalizeAnalyticsData(obj);
   }
 
   // 再帰的に探す
@@ -327,6 +340,24 @@ function findAnalyticsData(obj, depth = 0) {
   }
 
   return null;
+}
+
+/**
+ * アナリティクスデータを正規化
+ */
+function normalizeAnalyticsData(obj) {
+  console.log('[X-Analytics] Normalizing data:', JSON.stringify(obj).substring(0, 500));
+
+  return {
+    impressions: extractNumber(obj.impressions) || extractNumber(obj.impressionCount) || extractNumber(obj.impression_count),
+    profileClicks: extractNumber(obj.profileClicks) || extractNumber(obj.profileClickCount) || extractNumber(obj.user_profile_clicks) || extractNumber(obj.profile_clicks),
+    likes: extractNumber(obj.likes) || extractNumber(obj.likeCount) || extractNumber(obj.favorite_count) || extractNumber(obj.favourites_count),
+    replies: extractNumber(obj.replies) || extractNumber(obj.replyCount) || extractNumber(obj.reply_count),
+    reposts: extractNumber(obj.reposts) || extractNumber(obj.retweetCount) || extractNumber(obj.retweet_count),
+    newFollows: extractNumber(obj.newFollows) || extractNumber(obj.follows) || extractNumber(obj.follow_count) || extractNumber(obj.new_follows),
+    bookmarks: extractNumber(obj.bookmarks) || extractNumber(obj.bookmarkCount) || extractNumber(obj.bookmark_count),
+    shares: extractNumber(obj.shares) || extractNumber(obj.shareCount) || extractNumber(obj.share_count)
+  };
 }
 
 /**
