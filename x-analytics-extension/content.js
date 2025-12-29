@@ -270,5 +270,132 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // 非同期レスポンスを許可
 });
 
+// ========== 自動収集機能 ==========
+
+/**
+ * Analyticsページを検出して自動でタスクに保存
+ */
+async function autoCollectOnAnalyticsPage() {
+  const url = window.location.href;
+  const analyticsMatch = url.match(/x\.com\/i\/account_analytics\/content\/(\d+)/);
+
+  if (!analyticsMatch) {
+    return; // Analyticsページではない
+  }
+
+  console.log('[X-Analytics] Analytics page detected, waiting for data to load...');
+
+  // ページの読み込みを待つ
+  await waitForData();
+
+  const result = collectAllData();
+  console.log('[X-Analytics] Collected data:', result);
+
+  if (!result.success) {
+    console.log('[X-Analytics] Failed to collect:', result.error);
+    return;
+  }
+
+  // ストレージからタスクを取得して更新
+  const storage = await chrome.storage.local.get(['tasks']);
+  const tasks = storage.tasks || [];
+
+  const taskIndex = tasks.findIndex(t => t.postId === result.data.postId);
+
+  if (taskIndex >= 0) {
+    const task = tasks[taskIndex];
+    task.status = 'completed';
+    task.data = {
+      ...result.data,
+      tweetText: task.text || result.data.tweetText,
+      accountId: task.accountId || result.data.accountId
+    };
+
+    await chrome.storage.local.set({ tasks });
+    console.log('[X-Analytics] Task auto-saved:', task.postId);
+
+    // 通知バッジを表示
+    showNotification('データを取得しました');
+  } else {
+    console.log('[X-Analytics] No matching task found for postId:', result.data.postId);
+  }
+}
+
+/**
+ * データが読み込まれるまで待機
+ */
+function waitForData(maxWait = 5000) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+
+    const check = () => {
+      // インプレッション数などが表示されているかチェック
+      const hasData = document.querySelector('[class*="font-semibold"]') ||
+                      document.querySelector('[class*="grid"]');
+
+      if (hasData || Date.now() - startTime > maxWait) {
+        resolve();
+      } else {
+        setTimeout(check, 500);
+      }
+    };
+
+    check();
+  });
+}
+
+/**
+ * 画面に通知を表示
+ */
+function showNotification(message) {
+  const existing = document.getElementById('x-analytics-notification');
+  if (existing) existing.remove();
+
+  const notification = document.createElement('div');
+  notification.id = 'x-analytics-notification';
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #1da1f2, #9333ea);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 999999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease;
+  `;
+
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+// ページ読み込み完了時に自動収集
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(autoCollectOnAnalyticsPage, 1000);
+  });
+} else {
+  setTimeout(autoCollectOnAnalyticsPage, 1000);
+}
+
+// SPA対応: URL変更を監視
+let lastUrl = location.href;
+new MutationObserver(() => {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href;
+    console.log('[X-Analytics] URL changed:', lastUrl);
+    setTimeout(autoCollectOnAnalyticsPage, 1500);
+  }
+}).observe(document.body, { subtree: true, childList: true });
+
 // コンソールにロード完了を表示
-console.log('X Analytics Extension loaded');
+console.log('[X-Analytics] Extension loaded');
