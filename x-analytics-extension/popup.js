@@ -341,8 +341,16 @@ function autoSaveToTask(data) {
   const taskIndex = tasks.findIndex(t => t.postId === data.postId);
 
   if (taskIndex >= 0) {
-    tasks[taskIndex].status = 'completed';
-    tasks[taskIndex].data = data;
+    const task = tasks[taskIndex];
+    task.status = 'completed';
+    // スクレイピングデータに元のタスク情報をマージ
+    task.data = {
+      ...data,
+      // APIから取得した元のツイート本文を優先
+      tweetText: task.text || data.tweetText,
+      accountId: task.accountId || data.accountId
+    };
+    debugLog('autoSaveToTask merged', task.data);
     saveTasks();
     showStatus(currentStatus, 'タスクに自動保存しました', 'success');
   }
@@ -355,8 +363,14 @@ function saveCurrentToTask() {
   const taskIndex = tasks.findIndex(t => t.postId === currentPageData.postId);
 
   if (taskIndex >= 0) {
-    tasks[taskIndex].status = 'completed';
-    tasks[taskIndex].data = currentPageData;
+    const task = tasks[taskIndex];
+    task.status = 'completed';
+    // スクレイピングデータに元のタスク情報をマージ
+    task.data = {
+      ...currentPageData,
+      tweetText: task.text || currentPageData.tweetText,
+      accountId: task.accountId || currentPageData.accountId
+    };
   } else {
     // 新規タスクとして追加
     tasks.push({
@@ -398,16 +412,25 @@ async function sendAllToSheet() {
 
   for (const task of completedTasks) {
     try {
+      // 送信データを構築（元のタスク情報とスクレイピングデータをマージ）
+      const sendData = {
+        ...task.data,
+        tweetText: task.text || task.data?.tweetText,
+        accountId: task.accountId || task.data?.accountId,
+        postId: task.postId
+      };
+      debugLog('Sending to sheet', sendData);
+
       await fetch(gasUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(task.data),
+        body: JSON.stringify(sendData),
         mode: 'no-cors'
       });
       successCount++;
     } catch (error) {
       errorCount++;
-      console.error(`送信エラー (${task.postId}):`, error);
+      debugLog('送信エラー', { postId: task.postId, error: error.message });
     }
 
     // レート制限対策
