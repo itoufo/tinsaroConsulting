@@ -279,7 +279,7 @@ function getOrCreateMonthlySheet(ss, username, date) {
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
     const headers = [
-      '日付',
+      '投稿日付',
       '種類',
       'ツイート本文',
       'インプ数',
@@ -296,6 +296,7 @@ function getOrCreateMonthlySheet(ss, username, date) {
       'フォロー率判定',
       'フォロワー増加数（日）',
       'フォロワー増加数（週）',
+      '取得日付',
       'ツイートURL',
       'AnalyticsURL',
       'ポストID'
@@ -509,12 +510,13 @@ function fetchAndSaveTweets(ss, username, startTime, endTime) {
         const followRateJudgment = getJudgment(followRate, FOLLOW_RATE_THRESHOLDS);
 
         const createdAt = new Date(tweet.created_at);
-        const dateStr = Utilities.formatDate(createdAt, 'Asia/Tokyo', 'yyyy/MM/dd');
+        const postedDateStr = Utilities.formatDate(createdAt, 'Asia/Tokyo', 'yyyy/MM/dd');
+        const collectedDateStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
 
         const analyticsUrl = `https://x.com/i/account_analytics/content/${tweet.id}`;
 
         newRows.push([
-          dateStr,                                    // 日付
+          postedDateStr,                              // 投稿日付
           '',                                         // 種類（手動入力）
           tweet.text,                                 // ツイート本文
           impressions,                                // インプ数
@@ -531,6 +533,7 @@ function fetchAndSaveTweets(ss, username, startTime, endTime) {
           followRateJudgment,                         // フォロー率判定
           dailyFollowerIncrease,                      // フォロワー増加数（日）
           weeklyFollowerIncrease,                     // フォロワー増加数（週）
+          collectedDateStr,                           // 取得日付
           tweetUrl,                                   // ツイートURL
           analyticsUrl,                               // AnalyticsURL
           tweet.id                                    // ポストID
@@ -867,8 +870,12 @@ function saveAnalyticsFromExtension(data) {
   const tweetUrl = data.url || `https://x.com/${data.accountId}/status/${data.postId}`;
   const analyticsUrl = `https://x.com/i/account_analytics/content/${data.postId}`;
 
+  // 投稿日付（APIから取得したcreatedAtがあれば使用、なければ取得日付）
+  const postedDateStr = data.createdAt || dateStr;
+  const collectedDateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+
   const newRow = [
-    dateStr,                           // 日付
+    postedDateStr,                     // 投稿日付
     '',                                // 種類（手動入力）
     data.tweetText || '',              // ツイート本文
     impressions,                       // インプ数
@@ -885,6 +892,7 @@ function saveAnalyticsFromExtension(data) {
     followRateJudgment,                // フォロー率判定
     newFollows,                        // フォロワー増加数（日）= 新規フォロー
     0,                                 // フォロワー増加数（週）
+    collectedDateStr,                  // 取得日付
     tweetUrl,                          // ツイートURL
     analyticsUrl,                      // AnalyticsURL
     data.postId                        // ポストID
@@ -911,12 +919,12 @@ function getExistingPostIds(sheet) {
   const postIds = new Map();
 
   if (lastRow > 1) {
-    // 20列目にポストIDがある想定（なければURLから抽出）
+    // 21列目にポストIDがある想定（なければURLから抽出）
     const numCols = sheet.getLastColumn();
 
-    if (numCols >= 20) {
+    if (numCols >= 21) {
       // ポストID列がある場合
-      const idColumn = sheet.getRange(2, 20, lastRow - 1, 1).getValues();
+      const idColumn = sheet.getRange(2, 21, lastRow - 1, 1).getValues();
       idColumn.forEach((row, index) => {
         if (row[0]) {
           postIds.set(row[0].toString(), index + 2);
@@ -925,8 +933,8 @@ function getExistingPostIds(sheet) {
     }
 
     // URLからもポストIDを抽出（フォールバック）
-    if (numCols >= 18) {
-      const urlColumn = sheet.getRange(2, 18, lastRow - 1, 1).getValues();
+    if (numCols >= 19) {
+      const urlColumn = sheet.getRange(2, 19, lastRow - 1, 1).getValues();
       urlColumn.forEach((row, index) => {
         if (row[0]) {
           const match = row[0].toString().match(/status\/(\d+)/);
@@ -955,6 +963,10 @@ function updateExistingPost(sheet, data, rowIndex) {
   sheet.getRange(rowIndex, 10).setValue(data.reposts || 0);    // RT数
   sheet.getRange(rowIndex, 11).setValue(data.replies || 0);    // リプ数
   sheet.getRange(rowIndex, 16).setValue(data.newFollows || 0); // 新規フォロー
+
+  // 取得日付を更新
+  const collectedDateStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+  sheet.getRange(rowIndex, 18).setValue(collectedDateStr);     // 取得日付
 
   // プロクリ率再計算
   const profileClickRate = impressions > 0 ? profileClicks / impressions : 0;

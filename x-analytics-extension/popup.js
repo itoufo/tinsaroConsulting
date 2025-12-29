@@ -417,7 +417,8 @@ async function sendAllToSheet() {
         ...task.data,
         tweetText: task.text || task.data?.tweetText,
         accountId: task.accountId || task.data?.accountId,
-        postId: task.postId
+        postId: task.postId,
+        createdAt: task.createdAt  // 投稿日付（APIから取得）
       };
       debugLog('Sending to sheet', sendData);
 
