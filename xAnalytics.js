@@ -721,12 +721,79 @@ function doPost(e) {
 }
 
 /**
- * GETリクエスト（テスト用）
+ * GETリクエスト
+ * action=getTweets&username=xxx&days=7 でツイート一覧を取得
  */
 function doGet(e) {
+  try {
+    const action = e.parameter.action;
+
+    if (action === 'getTweets') {
+      const username = e.parameter.username;
+      const days = parseInt(e.parameter.days) || 7;
+
+      if (!username) {
+        return jsonResponse({ success: false, error: 'username is required' });
+      }
+
+      const result = getTweetsForExtension(username, days);
+      return jsonResponse(result);
+    }
+
+    if (action === 'getAccounts') {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const accounts = getAccountList(ss);
+      return jsonResponse({ success: true, accounts: accounts });
+    }
+
+    return jsonResponse({ status: 'ok', message: 'X Analytics API is running' });
+  } catch (error) {
+    return jsonResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * JSON レスポンスを返す
+ */
+function jsonResponse(data) {
   return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', message: 'X Analytics API is running' }))
+    .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * 拡張機能用: ツイート一覧を取得してAnalytics URLを生成
+ */
+function getTweetsForExtension(username, days) {
+  try {
+    const userId = getUserId(username);
+    const now = new Date();
+    const startTime = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const tweets = getTweets(userId, startTime, now);
+
+    // Analytics URL付きのリストを作成
+    const tweetList = tweets.map(tweet => {
+      const createdAt = new Date(tweet.created_at);
+      return {
+        postId: tweet.id,
+        text: tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : ''),
+        createdAt: Utilities.formatDate(createdAt, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'),
+        analyticsUrl: `https://x.com/i/account_analytics/content/${tweet.id}?referrerUrl=%2Fi%2Faccount_analytics%2Fcontent%3F`,
+        statusUrl: `https://x.com/${username}/status/${tweet.id}`,
+        metrics: tweet.public_metrics
+      };
+    });
+
+    return {
+      success: true,
+      username: username,
+      count: tweetList.length,
+      tweets: tweetList
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }
 
 /**
