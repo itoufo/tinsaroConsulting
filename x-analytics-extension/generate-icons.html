@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #1a1a2e; color: white; }
+    .icon-row { display: flex; gap: 20px; align-items: center; margin: 20px 0; }
+    canvas { border: 1px solid #333; }
+    button { padding: 8px 16px; cursor: pointer; }
+    a { color: #1da1f2; }
+  </style>
+</head>
+<body>
+  <h1>X Analytics Icon Generator</h1>
+  <p>Click each button to download the icon</p>
+
+  <div class="icon-row">
+    <canvas id="c16" width="16" height="16"></canvas>
+    <button onclick="download(16)">Download 16x16</button>
+  </div>
+  <div class="icon-row">
+    <canvas id="c48" width="48" height="48"></canvas>
+    <button onclick="download(48)">Download 48x48</button>
+  </div>
+  <div class="icon-row">
+    <canvas id="c128" width="128" height="128"></canvas>
+    <button onclick="download(128)">Download 128x128</button>
+  </div>
+
+  <script>
+    function drawIcon(size) {
+      const canvas = document.getElementById('c' + size);
+      const ctx = canvas.getContext('2d');
+      const s = size;
+
+      // Background gradient (dark blue to purple)
+      const gradient = ctx.createLinearGradient(0, 0, s, s);
+      gradient.addColorStop(0, '#1da1f2');
+      gradient.addColorStop(1, '#9333ea');
+
+      // Rounded rectangle background
+      const radius = s * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(s - radius, 0);
+      ctx.quadraticCurveTo(s, 0, s, radius);
+      ctx.lineTo(s, s - radius);
+      ctx.quadraticCurveTo(s, s, s - radius, s);
+      ctx.lineTo(radius, s);
+      ctx.quadraticCurveTo(0, s, 0, s - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // X logo (white)
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = 'white';
+      const lineWidth = Math.max(1, s * 0.08);
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+
+      // X shape
+      const margin = s * 0.25;
+      const xSize = s * 0.35;
+      const centerX = s * 0.38;
+      const centerY = s * 0.42;
+
+      ctx.beginPath();
+      ctx.moveTo(centerX - xSize/2, centerY - xSize/2);
+      ctx.lineTo(centerX + xSize/2, centerY + xSize/2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(centerX + xSize/2, centerY - xSize/2);
+      ctx.lineTo(centerX - xSize/2, centerY + xSize/2);
+      ctx.stroke();
+
+      // Analytics bars (bottom right)
+      const barWidth = s * 0.08;
+      const barGap = s * 0.04;
+      const barStartX = s * 0.55;
+      const barBottom = s * 0.78;
+      const bars = [
+        { height: s * 0.15 },
+        { height: s * 0.25 },
+        { height: s * 0.35 },
+      ];
+
+      bars.forEach((bar, i) => {
+        const x = barStartX + i * (barWidth + barGap);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillRect(x, barBottom - bar.height, barWidth, bar.height);
+      });
+
+      // Small upward arrow
+      const arrowX = barStartX + 1.5 * (barWidth + barGap);
+      const arrowY = s * 0.32;
+      ctx.beginPath();
+      ctx.moveTo(arrowX, arrowY + s*0.08);
+      ctx.lineTo(arrowX, arrowY);
+      ctx.lineTo(arrowX - s*0.05, arrowY + s*0.05);
+      ctx.moveTo(arrowX, arrowY);
+      ctx.lineTo(arrowX + s*0.05, arrowY + s*0.05);
+      ctx.lineWidth = Math.max(1, s * 0.05);
+      ctx.stroke();
+    }
+
+    function download(size) {
+      const canvas = document.getElementById('c' + size);
+      const link = document.createElement('a');
+      link.download = 'icon' + size + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Draw all icons
+    [16, 48, 128].forEach(drawIcon);
+  </script>
+</body>
+</html>
