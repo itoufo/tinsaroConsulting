@@ -279,37 +279,39 @@ function getOrCreateMonthlySheet(ss, username, date) {
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
     const headers = [
-      '投稿日付',
-      '種類',
-      'ツイート本文',
-      'インプ数',
-      'いいね数',
-      'プロフクリック数',
-      '詳細クリック',
-      'プロクリ率',
-      'プロクリ判定',
-      'RT数',
-      'リプ数',
-      'リプした数',
-      'フォロワー数',
-      'フォロー率',
-      'フォロー率判定',
-      'フォロワー増加数（日）',
-      'フォロワー増加数（週）',
-      '取得日付',
-      'ツイートURL',
-      'AnalyticsURL',
-      'ポストID'
+      'ポストID',           // 1
+      '投稿日付',           // 2
+      '取得日付',           // 3
+      '種類',               // 4
+      'ツイート本文',       // 5
+      'インプ数',           // 6
+      'いいね数',           // 7
+      'プロフクリック数',   // 8
+      '詳細クリック',       // 9
+      'プロクリ率',         // 10
+      'プロクリ判定',       // 11
+      'RT数',               // 12
+      'リプ数',             // 13
+      'リプした数',         // 14
+      'フォロワー数',       // 15
+      'フォロー率',         // 16
+      'フォロー率判定',     // 17
+      'フォロワー増加数（日）', // 18
+      'フォロワー増加数（週）', // 19
+      'ツイートURL',        // 20
+      'AnalyticsURL'        // 21
     ];
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
     sheet.setFrozenRows(1);
 
     // 列幅調整
-    sheet.setColumnWidth(1, 100);  // 日付
-    sheet.setColumnWidth(2, 60);   // 種類
-    sheet.setColumnWidth(3, 400);  // ツイート本文
-    sheet.setColumnWidth(18, 300); // URL
+    sheet.setColumnWidth(1, 180);  // ポストID
+    sheet.setColumnWidth(2, 100);  // 投稿日付
+    sheet.setColumnWidth(3, 130);  // 取得日付
+    sheet.setColumnWidth(4, 60);   // 種類
+    sheet.setColumnWidth(5, 400);  // ツイート本文
+    sheet.setColumnWidth(20, 300); // ツイートURL
 
     Logger.log(`シート作成: ${sheetName}`);
   }
@@ -516,33 +518,33 @@ function fetchAndSaveTweets(ss, username, startTime, endTime) {
         const analyticsUrl = `https://x.com/i/account_analytics/content/${tweet.id}`;
 
         newRows.push([
-          postedDateStr,                              // 投稿日付
-          '',                                         // 種類（手動入力）
-          tweet.text,                                 // ツイート本文
-          impressions,                                // インプ数
-          likes,                                      // いいね数
-          profileClicks,                              // プロフクリック数
-          detailClicks,                               // 詳細クリック
-          profileClickRate,                           // プロクリ率
-          profileClickRateJudgment,                   // プロクリ判定
-          retweets,                                   // RT数
-          replies,                                    // リプ数
-          0,                                          // リプした数（手動入力）
-          currentFollowers,                           // フォロワー数
-          followRate,                                 // フォロー率
-          followRateJudgment,                         // フォロー率判定
-          dailyFollowerIncrease,                      // フォロワー増加数（日）
-          weeklyFollowerIncrease,                     // フォロワー増加数（週）
-          collectedDateStr,                           // 取得日付
-          tweetUrl,                                   // ツイートURL
-          analyticsUrl,                               // AnalyticsURL
-          tweet.id                                    // ポストID
+          tweet.id,                                   // 1: ポストID
+          postedDateStr,                              // 2: 投稿日付
+          collectedDateStr,                           // 3: 取得日付
+          '',                                         // 4: 種類（手動入力）
+          tweet.text,                                 // 5: ツイート本文
+          impressions,                                // 6: インプ数
+          likes,                                      // 7: いいね数
+          profileClicks,                              // 8: プロフクリック数
+          detailClicks,                               // 9: 詳細クリック
+          profileClickRate,                           // 10: プロクリ率
+          profileClickRateJudgment,                   // 11: プロクリ判定
+          retweets,                                   // 12: RT数
+          replies,                                    // 13: リプ数
+          0,                                          // 14: リプした数（手動入力）
+          currentFollowers,                           // 15: フォロワー数
+          followRate,                                 // 16: フォロー率
+          followRateJudgment,                         // 17: フォロー率判定
+          dailyFollowerIncrease,                      // 18: フォロワー増加数（日）
+          weeklyFollowerIncrease,                     // 19: フォロワー増加数（週）
+          tweetUrl,                                   // 20: ツイートURL
+          analyticsUrl                                // 21: AnalyticsURL
         ]);
       });
 
       if (newRows.length > 0) {
-        // 日付順（古い順）にソート
-        newRows.sort((a, b) => new Date(a[0]) - new Date(b[0]));
+        // 日付順（古い順）にソート（投稿日付は2列目=index 1）
+        newRows.sort((a, b) => new Date(a[1]) - new Date(b[1]));
 
         const lastRow = sheet.getLastRow();
         sheet.getRange(lastRow + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
@@ -569,8 +571,8 @@ function getPreviousFollowerCount(sheet) {
     return null;
   }
 
-  // フォロワー数は13列目
-  const followerCount = sheet.getRange(lastRow, 13).getValue();
+  // フォロワー数は15列目
+  const followerCount = sheet.getRange(lastRow, 15).getValue();
   return followerCount || null;
 }
 
@@ -586,13 +588,13 @@ function getWeeklyFollowerIncrease(sheet, currentFollowers) {
   const today = new Date();
   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  // 7日前のデータを探す
-  const data = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+  // 7日前のデータを探す（15列まで取得）
+  const data = sheet.getRange(2, 1, lastRow - 1, 15).getValues();
 
   for (let i = data.length - 1; i >= 0; i--) {
-    const rowDate = new Date(data[i][0]);
+    const rowDate = new Date(data[i][1]); // 投稿日付は2列目（index 1）
     if (rowDate <= weekAgo) {
-      const weekAgoFollowers = data[i][12];
+      const weekAgoFollowers = data[i][14]; // フォロワー数は15列目（index 14）
       if (weekAgoFollowers) {
         return currentFollowers - weekAgoFollowers;
       }
@@ -601,8 +603,8 @@ function getWeeklyFollowerIncrease(sheet, currentFollowers) {
   }
 
   // 7日前のデータがない場合は最初のデータとの差分
-  if (data.length > 0 && data[0][12]) {
-    return currentFollowers - data[0][12];
+  if (data.length > 0 && data[0][14]) {
+    return currentFollowers - data[0][14];
   }
 
   return 0;
@@ -616,7 +618,8 @@ function getExistingTweetUrls(sheet) {
   const urls = new Set();
 
   if (lastRow > 1) {
-    const urlColumn = sheet.getRange(2, 18, lastRow - 1, 1).getValues();
+    // ツイートURLは20列目
+    const urlColumn = sheet.getRange(2, 20, lastRow - 1, 1).getValues();
     urlColumn.forEach(row => {
       if (row[0]) {
         urls.add(row[0]);
@@ -641,14 +644,14 @@ function getJudgment(rate, thresholds) {
  * データシートのフォーマット設定
  */
 function formatDataSheet(sheet, startRow, numRows) {
-  // プロクリ率（8列目）とフォロー率（14列目）をパーセント表示
-  sheet.getRange(startRow, 8, numRows, 1).setNumberFormat('0.00%');
-  sheet.getRange(startRow, 14, numRows, 1).setNumberFormat('0.00%');
+  // プロクリ率（10列目）とフォロー率（16列目）をパーセント表示
+  sheet.getRange(startRow, 10, numRows, 1).setNumberFormat('0.00%');
+  sheet.getRange(startRow, 16, numRows, 1).setNumberFormat('0.00%');
 
   // 数値列のフォーマット
-  sheet.getRange(startRow, 4, numRows, 4).setNumberFormat('#,##0');  // インプ〜詳細クリック
-  sheet.getRange(startRow, 10, numRows, 4).setNumberFormat('#,##0'); // RT〜フォロワー数
-  sheet.getRange(startRow, 16, numRows, 2).setNumberFormat('#,##0'); // フォロワー増加数
+  sheet.getRange(startRow, 6, numRows, 4).setNumberFormat('#,##0');  // インプ〜詳細クリック (6-9)
+  sheet.getRange(startRow, 12, numRows, 4).setNumberFormat('#,##0'); // RT〜フォロワー数 (12-15)
+  sheet.getRange(startRow, 18, numRows, 2).setNumberFormat('#,##0'); // フォロワー増加数 (18-19)
 }
 
 // ========== ユーティリティ ==========
@@ -676,30 +679,31 @@ function recalculateMetrics() {
     const sheetName = sheet.getName();
     // 設定シート以外の月別シートを処理
     if (sheetName === SHEET_NAME_SETTINGS) return;
+    if (sheetName === SHEET_NAME_MANUAL) return;
     if (!sheetName.includes('_')) return; // アカウント_年-月 形式でなければスキップ
 
     const lastRow = sheet.getLastRow();
     if (lastRow <= 1) return;
 
-    const data = sheet.getRange(2, 1, lastRow - 1, 18).getValues();
+    const data = sheet.getRange(2, 1, lastRow - 1, 19).getValues();
 
     data.forEach((row, index) => {
-      const impressions = row[3];      // インプ数
-      const profileClicks = row[5];    // プロフクリック数
-      const dailyFollowerIncrease = row[15]; // フォロワー増加数（日）
+      const impressions = row[5];      // インプ数（6列目、index 5）
+      const profileClicks = row[7];    // プロフクリック数（8列目、index 7）
+      const dailyFollowerIncrease = row[17]; // フォロワー増加数（日）（18列目、index 17）
 
       // プロクリ率再計算
       if (impressions > 0) {
         const profileClickRate = profileClicks / impressions;
-        sheet.getRange(index + 2, 8).setValue(profileClickRate);
-        sheet.getRange(index + 2, 9).setValue(getJudgment(profileClickRate, PROFILE_CLICK_RATE_THRESHOLDS));
+        sheet.getRange(index + 2, 10).setValue(profileClickRate);
+        sheet.getRange(index + 2, 11).setValue(getJudgment(profileClickRate, PROFILE_CLICK_RATE_THRESHOLDS));
       }
 
       // フォロー率再計算
       if (profileClicks > 0) {
         const followRate = dailyFollowerIncrease / profileClicks;
-        sheet.getRange(index + 2, 14).setValue(followRate);
-        sheet.getRange(index + 2, 15).setValue(getJudgment(followRate, FOLLOW_RATE_THRESHOLDS));
+        sheet.getRange(index + 2, 16).setValue(followRate);
+        sheet.getRange(index + 2, 17).setValue(getJudgment(followRate, FOLLOW_RATE_THRESHOLDS));
       }
     });
 
@@ -875,27 +879,27 @@ function saveAnalyticsFromExtension(data) {
   const collectedDateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
 
   const newRow = [
-    postedDateStr,                     // 投稿日付
-    '',                                // 種類（手動入力）
-    data.tweetText || '',              // ツイート本文
-    impressions,                       // インプ数
-    data.likes || 0,                   // いいね数
-    profileClicks,                     // プロフクリック数
-    0,                                 // 詳細クリック
-    profileClickRate,                  // プロクリ率
-    profileClickRateJudgment,          // プロクリ判定
-    data.reposts || 0,                 // RT数
-    data.replies || 0,                 // リプ数
-    0,                                 // リプした数（手動入力）
-    0,                                 // フォロワー数（後で取得）
-    followRate,                        // フォロー率
-    followRateJudgment,                // フォロー率判定
-    newFollows,                        // フォロワー増加数（日）= 新規フォロー
-    0,                                 // フォロワー増加数（週）
-    collectedDateStr,                  // 取得日付
-    tweetUrl,                          // ツイートURL
-    analyticsUrl,                      // AnalyticsURL
-    data.postId                        // ポストID
+    data.postId,                       // 1: ポストID
+    postedDateStr,                     // 2: 投稿日付
+    collectedDateStr,                  // 3: 取得日付
+    '',                                // 4: 種類（手動入力）
+    data.tweetText || '',              // 5: ツイート本文
+    impressions,                       // 6: インプ数
+    data.likes || 0,                   // 7: いいね数
+    profileClicks,                     // 8: プロフクリック数
+    0,                                 // 9: 詳細クリック
+    profileClickRate,                  // 10: プロクリ率
+    profileClickRateJudgment,          // 11: プロクリ判定
+    data.reposts || 0,                 // 12: RT数
+    data.replies || 0,                 // 13: リプ数
+    0,                                 // 14: リプした数（手動入力）
+    0,                                 // 15: フォロワー数（後で取得）
+    followRate,                        // 16: フォロー率
+    followRateJudgment,                // 17: フォロー率判定
+    newFollows,                        // 18: フォロワー増加数（日）= 新規フォロー
+    0,                                 // 19: フォロワー増加数（週）
+    tweetUrl,                          // 20: ツイートURL
+    analyticsUrl                       // 21: AnalyticsURL
   ];
 
   const lastRow = sheet.getLastRow();
@@ -919,22 +923,18 @@ function getExistingPostIds(sheet) {
   const postIds = new Map();
 
   if (lastRow > 1) {
-    // 21列目にポストIDがある想定（なければURLから抽出）
+    // ポストIDは1列目
+    const idColumn = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    idColumn.forEach((row, index) => {
+      if (row[0]) {
+        postIds.set(row[0].toString(), index + 2);
+      }
+    });
+
+    // URLからもポストIDを抽出（フォールバック、ツイートURLは20列目）
     const numCols = sheet.getLastColumn();
-
-    if (numCols >= 21) {
-      // ポストID列がある場合
-      const idColumn = sheet.getRange(2, 21, lastRow - 1, 1).getValues();
-      idColumn.forEach((row, index) => {
-        if (row[0]) {
-          postIds.set(row[0].toString(), index + 2);
-        }
-      });
-    }
-
-    // URLからもポストIDを抽出（フォールバック）
-    if (numCols >= 19) {
-      const urlColumn = sheet.getRange(2, 19, lastRow - 1, 1).getValues();
+    if (numCols >= 20) {
+      const urlColumn = sheet.getRange(2, 20, lastRow - 1, 1).getValues();
       urlColumn.forEach((row, index) => {
         if (row[0]) {
           const match = row[0].toString().match(/status\/(\d+)/);
@@ -957,27 +957,27 @@ function updateExistingPost(sheet, data, rowIndex) {
   const impressions = data.impressions || 0;
   const profileClicks = data.profileClicks || 0;
 
-  sheet.getRange(rowIndex, 4).setValue(impressions);           // インプ数
-  sheet.getRange(rowIndex, 5).setValue(data.likes || 0);       // いいね数
-  sheet.getRange(rowIndex, 6).setValue(profileClicks);         // プロフクリック数
-  sheet.getRange(rowIndex, 10).setValue(data.reposts || 0);    // RT数
-  sheet.getRange(rowIndex, 11).setValue(data.replies || 0);    // リプ数
-  sheet.getRange(rowIndex, 16).setValue(data.newFollows || 0); // 新規フォロー
+  sheet.getRange(rowIndex, 6).setValue(impressions);           // インプ数
+  sheet.getRange(rowIndex, 7).setValue(data.likes || 0);       // いいね数
+  sheet.getRange(rowIndex, 8).setValue(profileClicks);         // プロフクリック数
+  sheet.getRange(rowIndex, 12).setValue(data.reposts || 0);    // RT数
+  sheet.getRange(rowIndex, 13).setValue(data.replies || 0);    // リプ数
+  sheet.getRange(rowIndex, 18).setValue(data.newFollows || 0); // フォロワー増加数（日）
 
-  // 取得日付を更新
+  // 取得日付を更新（3列目）
   const collectedDateStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
-  sheet.getRange(rowIndex, 18).setValue(collectedDateStr);     // 取得日付
+  sheet.getRange(rowIndex, 3).setValue(collectedDateStr);
 
   // プロクリ率再計算
   const profileClickRate = impressions > 0 ? profileClicks / impressions : 0;
-  sheet.getRange(rowIndex, 8).setValue(profileClickRate);
-  sheet.getRange(rowIndex, 9).setValue(getJudgment(profileClickRate, PROFILE_CLICK_RATE_THRESHOLDS));
+  sheet.getRange(rowIndex, 10).setValue(profileClickRate);
+  sheet.getRange(rowIndex, 11).setValue(getJudgment(profileClickRate, PROFILE_CLICK_RATE_THRESHOLDS));
 
   // フォロー率再計算
   const newFollows = data.newFollows || 0;
   const followRate = profileClicks > 0 ? newFollows / profileClicks : 0;
-  sheet.getRange(rowIndex, 14).setValue(followRate);
-  sheet.getRange(rowIndex, 15).setValue(getJudgment(followRate, FOLLOW_RATE_THRESHOLDS));
+  sheet.getRange(rowIndex, 16).setValue(followRate);
+  sheet.getRange(rowIndex, 17).setValue(getJudgment(followRate, FOLLOW_RATE_THRESHOLDS));
 
   return {
     success: true,
