@@ -273,10 +273,12 @@ function getDataFromInitialState() {
       return null;
     }
 
-    console.log('[X-Analytics] Found __INITIAL_STATE__');
+    console.log('[X-Analytics] Found __INITIAL_STATE__, keys:', Object.keys(initialState));
+
+    // デバッグ: 全体構造を出力
+    debugLogStructure(initialState, '__INITIAL_STATE__', 0);
 
     // Analytics データを探す
-    // contentAnalytics または tweetAnalytics などのキーを探す
     const analyticsData = findAnalyticsData(initialState);
 
     if (analyticsData) {
@@ -288,6 +290,32 @@ function getDataFromInitialState() {
   } catch (error) {
     console.log('[X-Analytics] Error getting __INITIAL_STATE__:', error);
     return null;
+  }
+}
+
+/**
+ * デバッグ用: オブジェクト構造をログ出力
+ */
+function debugLogStructure(obj, path, depth) {
+  if (depth > 3 || !obj || typeof obj !== 'object') return;
+
+  for (const key in obj) {
+    if (!obj.hasOwnProperty(key)) continue;
+
+    const val = obj[key];
+    const currentPath = `${path}.${key}`;
+
+    // 数値を含むキーを探す
+    const interestingKeys = ['impression', 'profile', 'click', 'like', 'follow', 'view', 'engage', 'metric', 'count', 'analytics'];
+    const isInteresting = interestingKeys.some(k => key.toLowerCase().includes(k));
+
+    if (isInteresting) {
+      console.log(`[X-Analytics DEBUG] ${currentPath}:`, typeof val === 'object' ? JSON.stringify(val).substring(0, 200) : val);
+    }
+
+    if (typeof val === 'object' && val !== null) {
+      debugLogStructure(val, currentPath, depth + 1);
+    }
   }
 }
 
