@@ -1,5 +1,171 @@
 // X Analytics データ取得スクリプト
 
+// ========== APIレスポンス インターセプト ==========
+
+// キャプチャしたAPIデータを保存
+let capturedAnalyticsData = null;
+
+/**
+ * ページコンテキストにスクリプトを注入してfetch/XHRをインターセプト
+ */
+function injectInterceptor() {
+  const script = document.createElement('script');
+  script.textContent = `
+(function() {
+  // インターセプト済みフラグ
+  if (window.__xAnalyticsIntercepted) return;
+  window.__xAnalyticsIntercepted = true;
+
+  console.log('[X-Analytics] Injecting API interceptor');
+
+  // fetch をインターセプト
+  const originalFetch = window.fetch;
+  window.fetch = async function(...args) {
+    const response = await originalFetch.apply(this, args);
+
+    try {
+      const url = args[0]?.toString() || '';
+
+      // Analytics API のレスポンスをキャプチャ
+      if (url.includes('TweetActivityQuery') ||
+          url.includes('ContentAnalytics') ||
+          url.includes('account_analytics') ||
+          url.includes('/i/api/') ||
+          (url.includes('/graphql/') && url.includes('Analytics'))) {
+
+        const clone = response.clone();
+        clone.json().then(data => {
+          console.log('[X-Analytics] Captured fetch response:', url.substring(0, 100));
+          const analyticsData = findMetricsInResponse(data);
+          if (analyticsData) {
+            console.log('[X-Analytics] Found analytics data:', analyticsData);
+            window.dispatchEvent(new CustomEvent('xAnalyticsData', { detail: analyticsData }));
+          }
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
+    return response;
+  };
+
+  // XMLHttpRequest をインターセプト
+  const originalOpen = XMLHttpRequest.prototype.open;
+  const originalSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+    this._url = url;
+    return originalOpen.apply(this, [method, url, ...rest]);
+  };
+
+  XMLHttpRequest.prototype.send = function(...args) {
+    this.addEventListener('load', function() {
+      try {
+        const url = this._url || '';
+
+        if (url.includes('TweetActivityQuery') ||
+            url.includes('ContentAnalytics') ||
+            url.includes('account_analytics') ||
+            url.includes('/i/api/') ||
+            (url.includes('/graphql/') && url.includes('Analytics'))) {
+
+          const data = JSON.parse(this.responseText);
+          console.log('[X-Analytics] Captured XHR response:', url.substring(0, 100));
+          const analyticsData = findMetricsInResponse(data);
+          if (analyticsData) {
+            console.log('[X-Analytics] Found analytics data (XHR):', analyticsData);
+            window.dispatchEvent(new CustomEvent('xAnalyticsData', { detail: analyticsData }));
+          }
+        }
+      } catch (e) {}
+    });
+
+    return originalSend.apply(this, args);
+  };
+
+  // メトリクスを探す関数
+  function findMetricsInResponse(obj, depth = 0) {
+    if (depth > 20 || !obj || typeof obj !== 'object') return null;
+
+    // 直接メトリクスがある場合
+    if (obj.impression_count !== undefined || obj.impressions !== undefined) {
+      return {
+        impressions: obj.impression_count ?? obj.impressions,
+        profileClicks: obj.user_profile_clicks ?? obj.profile_clicks,
+        likes: obj.like_count ?? obj.favorite_count ?? obj.likes,
+        replies: obj.reply_count ?? obj.replies,
+        reposts: obj.retweet_count ?? obj.reposts,
+        newFollows: obj.follows ?? obj.new_follows,
+        bookmarks: obj.bookmark_count ?? obj.bookmarks,
+        shares: obj.share_count ?? obj.shares,
+        detailClicks: obj.detail_expands ?? obj.detail_clicks,
+        engagements: obj.engagements ?? obj.engagement_count,
+        videoViews: obj.video_view_count ?? obj.media_views
+      };
+    }
+
+    // organic_metrics を探す
+    if (obj.organic_metrics) {
+      return findMetricsInResponse(obj.organic_metrics, depth + 1);
+    }
+    if (obj.non_public_metrics) {
+      const m = findMetricsInResponse(obj.non_public_metrics, depth + 1);
+      if (m) return m;
+    }
+
+    // 配列
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const result = findMetricsInResponse(item, depth + 1);
+        if (result) return result;
+      }
+      return null;
+    }
+
+    // 再帰探索（有望なキーを優先）
+    const priorityKeys = ['metrics', 'analytics', 'activity', 'data', 'result', 'tweet', 'content', 'core', 'views'];
+    for (const key of priorityKeys) {
+      if (obj[key]) {
+        const result = findMetricsInResponse(obj[key], depth + 1);
+        if (result) return result;
+      }
+    }
+
+    // 残りのキー
+    for (const key of Object.keys(obj)) {
+      if (!priorityKeys.includes(key)) {
+        const result = findMetricsInResponse(obj[key], depth + 1);
+        if (result) return result;
+      }
+    }
+
+    return null;
+  }
+
+  console.log('[X-Analytics] API interceptor ready');
+})();
+`;
+
+  // head が存在すればhead、なければdocumentElementに追加
+  (document.head || document.documentElement).appendChild(script);
+  script.remove();
+}
+
+// ページコンテキストからのデータを受信
+window.addEventListener('xAnalyticsData', (event) => {
+  capturedAnalyticsData = event.detail;
+  console.log('[X-Analytics] Received analytics data from page context:', capturedAnalyticsData);
+});
+
+// インターセプターを注入
+injectInterceptor();
+
+/**
+ * キャプチャしたAPIデータを取得
+ */
+function getCapturedApiData() {
+  return capturedAnalyticsData;
+}
+
 /**
  * URLからポスト情報を取得
  */
@@ -84,8 +250,26 @@ function scrapeAnalyticsData() {
     detailClicks: null      // 詳細クリック
   };
 
-  // __INITIAL_STATE__ にはツイートアナリティクスデータがないため、DOMスクレイピングを使用
-  console.log('[X-Analytics] Using DOM scraping (K/M suffix supported)');
+  // まずキャプチャしたAPIデータを確認
+  const apiData = getCapturedApiData();
+  if (apiData && apiData.impressions !== undefined) {
+    console.log('[X-Analytics] Using captured API data (raw numbers):', apiData);
+    return {
+      impressions: apiData.impressions,
+      likes: apiData.likes,
+      replies: apiData.replies,
+      reposts: apiData.reposts,
+      engagementRate: null,
+      profileClicks: apiData.profileClicks,
+      newFollows: apiData.newFollows,
+      bookmarks: apiData.bookmarks,
+      shares: apiData.shares,
+      mediaViews: apiData.videoViews,
+      detailClicks: apiData.detailClicks
+    };
+  }
+
+  console.log('[X-Analytics] No API data captured, using DOM scraping (K/M suffix supported)');
 
   // ラベルとデータのマッピング
   const labelMap = {
@@ -220,153 +404,6 @@ function parseValue(value) {
 
   const parsed = parseInt(cleanValue, 10);
   return isNaN(parsed) ? value : parsed;
-}
-
-/**
- * window.__INITIAL_STATE__ からデータを取得
- */
-function getDataFromInitialState() {
-  try {
-    // scriptタグから __INITIAL_STATE__ を探す
-    const scripts = document.querySelectorAll('script');
-    let initialState = null;
-
-    for (const script of scripts) {
-      const text = script.textContent || '';
-      const match = text.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:window\.|<\/script>|$)/);
-      if (match) {
-        try {
-          initialState = JSON.parse(match[1]);
-          break;
-        } catch (e) {
-          console.log('[X-Analytics] Failed to parse __INITIAL_STATE__:', e);
-        }
-      }
-    }
-
-    // グローバル変数からも試す
-    if (!initialState && window.__INITIAL_STATE__) {
-      initialState = window.__INITIAL_STATE__;
-    }
-
-    if (!initialState) {
-      console.log('[X-Analytics] __INITIAL_STATE__ not found');
-      return null;
-    }
-
-    console.log('[X-Analytics] Found __INITIAL_STATE__, keys:', Object.keys(initialState));
-
-    // デバッグ: 全体構造を出力
-    debugLogStructure(initialState, '__INITIAL_STATE__', 0);
-
-    // Analytics データを探す
-    const analyticsData = findAnalyticsData(initialState);
-
-    if (analyticsData) {
-      console.log('[X-Analytics] Found analytics data:', analyticsData);
-      return analyticsData;
-    }
-
-    return null;
-  } catch (error) {
-    console.log('[X-Analytics] Error getting __INITIAL_STATE__:', error);
-    return null;
-  }
-}
-
-/**
- * デバッグ用: オブジェクト構造をログ出力
- */
-function debugLogStructure(obj, path, depth) {
-  if (depth > 3 || !obj || typeof obj !== 'object') return;
-
-  for (const key in obj) {
-    if (!obj.hasOwnProperty(key)) continue;
-
-    const val = obj[key];
-    const currentPath = `${path}.${key}`;
-
-    // 数値を含むキーを探す
-    const interestingKeys = ['impression', 'profile', 'click', 'like', 'follow', 'view', 'engage', 'metric', 'count', 'analytics'];
-    const isInteresting = interestingKeys.some(k => key.toLowerCase().includes(k));
-
-    if (isInteresting) {
-      console.log(`[X-Analytics DEBUG] ${currentPath}:`, typeof val === 'object' ? JSON.stringify(val).substring(0, 200) : val);
-    }
-
-    if (typeof val === 'object' && val !== null) {
-      debugLogStructure(val, currentPath, depth + 1);
-    }
-  }
-}
-
-/**
- * 値を数値に変換（オブジェクトの場合はvalue等を探す）
- */
-function extractNumber(val) {
-  if (val === null || val === undefined) return null;
-  if (typeof val === 'number') return val;
-  if (typeof val === 'string') return parseValue(val);
-  if (typeof val === 'object') {
-    // { value: 123 } や { count: 123 } のようなオブジェクト
-    if (val.value !== undefined) return extractNumber(val.value);
-    if (val.count !== undefined) return extractNumber(val.count);
-    if (val.total !== undefined) return extractNumber(val.total);
-    // 配列の場合は最初の要素
-    if (Array.isArray(val) && val.length > 0) return extractNumber(val[0]);
-  }
-  return null;
-}
-
-/**
- * __INITIAL_STATE__ 内からアナリティクスデータを再帰的に探す
- */
-function findAnalyticsData(obj, depth = 0) {
-  if (depth > 10 || !obj || typeof obj !== 'object') return null;
-
-  // analytics関連のキーを探す
-  const analyticsKeys = ['contentAnalytics', 'tweetAnalytics', 'analytics', 'metrics', 'organic_metrics'];
-
-  for (const key of analyticsKeys) {
-    if (obj[key]) {
-      console.log('[X-Analytics] Found key:', key, obj[key]);
-      return normalizeAnalyticsData(obj[key]);
-    }
-  }
-
-  // impressions や profileClicks が直接あるか
-  if (obj.impressions !== undefined || obj.impressionCount !== undefined) {
-    console.log('[X-Analytics] Found impressions directly in object:', obj);
-    return normalizeAnalyticsData(obj);
-  }
-
-  // 再帰的に探す
-  for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      const result = findAnalyticsData(obj[key], depth + 1);
-      if (result) return result;
-    }
-  }
-
-  return null;
-}
-
-/**
- * アナリティクスデータを正規化
- */
-function normalizeAnalyticsData(obj) {
-  console.log('[X-Analytics] Normalizing data:', JSON.stringify(obj).substring(0, 500));
-
-  return {
-    impressions: extractNumber(obj.impressions) || extractNumber(obj.impressionCount) || extractNumber(obj.impression_count),
-    profileClicks: extractNumber(obj.profileClicks) || extractNumber(obj.profileClickCount) || extractNumber(obj.user_profile_clicks) || extractNumber(obj.profile_clicks),
-    likes: extractNumber(obj.likes) || extractNumber(obj.likeCount) || extractNumber(obj.favorite_count) || extractNumber(obj.favourites_count),
-    replies: extractNumber(obj.replies) || extractNumber(obj.replyCount) || extractNumber(obj.reply_count),
-    reposts: extractNumber(obj.reposts) || extractNumber(obj.retweetCount) || extractNumber(obj.retweet_count),
-    newFollows: extractNumber(obj.newFollows) || extractNumber(obj.follows) || extractNumber(obj.follow_count) || extractNumber(obj.new_follows),
-    bookmarks: extractNumber(obj.bookmarks) || extractNumber(obj.bookmarkCount) || extractNumber(obj.bookmark_count),
-    shares: extractNumber(obj.shares) || extractNumber(obj.shareCount) || extractNumber(obj.share_count)
-  };
 }
 
 /**

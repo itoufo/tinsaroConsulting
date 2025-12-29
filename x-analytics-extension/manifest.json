@@ -28,7 +28,8 @@
         "https://twitter.com/*/status/*"
       ],
       "js": ["content.js"],
-      "css": ["content.css"]
+      "css": ["content.css"],
+      "run_at": "document_start"
     }
   ],
   "icons": {
