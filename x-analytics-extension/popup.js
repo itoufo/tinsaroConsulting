@@ -210,6 +210,8 @@ function addToTasks() {
 
   fetchedTweets.forEach(tweet => {
     if (!existingIds.has(tweet.postId)) {
+      // X APIから取得したメトリクスを初期データとして保存
+      const apiMetrics = tweet.metrics || {};
       tasks.push({
         postId: tweet.postId,
         accountId: tweet.accountId,
@@ -218,8 +220,17 @@ function addToTasks() {
         analyticsUrl: tweet.analyticsUrl,
         statusUrl: tweet.statusUrl,
         status: 'pending',  // pending, completed, error
+        // APIメトリクスを初期データとして設定（生の数値）
+        apiMetrics: {
+          impressions: apiMetrics.impression_count,
+          likes: apiMetrics.like_count,
+          reposts: apiMetrics.retweet_count,
+          replies: apiMetrics.reply_count,
+          bookmarks: apiMetrics.bookmark_count
+        },
         data: null
       });
+      debugLog('Added task with API metrics', { postId: tweet.postId, metrics: apiMetrics });
     }
   });
 
@@ -343,14 +354,32 @@ function autoSaveToTask(data) {
   if (taskIndex >= 0) {
     const task = tasks[taskIndex];
     task.status = 'completed';
-    // スクレイピングデータに元のタスク情報をマージ
+
+    // APIメトリクス（生の数値）とスクレイピングデータをマージ
+    const apiMetrics = task.apiMetrics || {};
+
     task.data = {
       ...data,
       // APIから取得した元のツイート本文を優先
       tweetText: task.text || data.tweetText,
-      accountId: task.accountId || data.accountId
+      accountId: task.accountId || data.accountId,
+      // APIメトリクスを優先（生の数値）、スクレイピングはフォールバック
+      impressions: apiMetrics.impressions ?? data.impressions,
+      likes: apiMetrics.likes ?? data.likes,
+      reposts: apiMetrics.reposts ?? data.reposts,
+      replies: apiMetrics.replies ?? data.replies,
+      bookmarks: apiMetrics.bookmarks ?? data.bookmarks,
+      // プロフクリック・新規フォローはスクレイピングのみ（APIで取れない）
+      profileClicks: data.profileClicks,
+      newFollows: data.newFollows
     };
-    debugLog('autoSaveToTask merged', task.data);
+
+    debugLog('autoSaveToTask merged (API + scrape)', {
+      apiMetrics,
+      scraped: { impressions: data.impressions, profileClicks: data.profileClicks },
+      final: { impressions: task.data.impressions, profileClicks: task.data.profileClicks }
+    });
+
     saveTasks();
     showStatus(currentStatus, 'タスクに自動保存しました', 'success');
   }

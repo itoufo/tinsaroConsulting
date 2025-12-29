@@ -514,11 +514,31 @@ async function autoCollectOnAnalyticsPage() {
   if (taskIndex >= 0) {
     const task = tasks[taskIndex];
     task.status = 'completed';
+
+    // APIメトリクス（生の数値）とスクレイピングデータをマージ
+    const apiMetrics = task.apiMetrics || {};
+    const scraped = result.data;
+
     task.data = {
-      ...result.data,
-      tweetText: task.text || result.data.tweetText,
-      accountId: task.accountId || result.data.accountId
+      ...scraped,
+      tweetText: task.text || scraped.tweetText,
+      accountId: task.accountId || scraped.accountId,
+      // APIメトリクスを優先（生の数値）
+      impressions: apiMetrics.impressions ?? scraped.impressions,
+      likes: apiMetrics.likes ?? scraped.likes,
+      reposts: apiMetrics.reposts ?? scraped.reposts,
+      replies: apiMetrics.replies ?? scraped.replies,
+      bookmarks: apiMetrics.bookmarks ?? scraped.bookmarks,
+      // プロフクリック・新規フォローはスクレイピングのみ
+      profileClicks: scraped.profileClicks,
+      newFollows: scraped.newFollows
     };
+
+    console.log('[X-Analytics] Merged data:', {
+      apiMetrics,
+      scraped: { impressions: scraped.impressions, profileClicks: scraped.profileClicks },
+      final: { impressions: task.data.impressions, profileClicks: task.data.profileClicks }
+    });
 
     await chrome.storage.local.set({ tasks });
     console.log('[X-Analytics] Task auto-saved:', task.postId);
