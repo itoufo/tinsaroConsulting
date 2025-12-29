@@ -297,6 +297,7 @@ function getOrCreateMonthlySheet(ss, username, date) {
       'フォロワー増加数（日）',
       'フォロワー増加数（週）',
       'ツイートURL',
+      'AnalyticsURL',
       'ポストID'
     ];
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -510,6 +511,8 @@ function fetchAndSaveTweets(ss, username, startTime, endTime) {
         const createdAt = new Date(tweet.created_at);
         const dateStr = Utilities.formatDate(createdAt, 'Asia/Tokyo', 'yyyy/MM/dd');
 
+        const analyticsUrl = `https://x.com/i/account_analytics/content/${tweet.id}`;
+
         newRows.push([
           dateStr,                                    // 日付
           '',                                         // 種類（手動入力）
@@ -528,7 +531,9 @@ function fetchAndSaveTweets(ss, username, startTime, endTime) {
           followRateJudgment,                         // フォロー率判定
           dailyFollowerIncrease,                      // フォロワー増加数（日）
           weeklyFollowerIncrease,                     // フォロワー増加数（週）
-          tweetUrl                                    // ツイートURL
+          tweetUrl,                                   // ツイートURL
+          analyticsUrl,                               // AnalyticsURL
+          tweet.id                                    // ポストID
         ]);
       });
 
@@ -844,6 +849,9 @@ function saveAnalyticsFromExtension(data) {
   const followRate = profileClicks > 0 ? newFollows / profileClicks : 0;
   const followRateJudgment = getJudgment(followRate, FOLLOW_RATE_THRESHOLDS);
 
+  const tweetUrl = data.url || `https://x.com/${data.accountId}/status/${data.postId}`;
+  const analyticsUrl = `https://x.com/i/account_analytics/content/${data.postId}`;
+
   const newRow = [
     dateStr,                           // 日付
     '',                                // 種類（手動入力）
@@ -862,8 +870,9 @@ function saveAnalyticsFromExtension(data) {
     followRateJudgment,                // フォロー率判定
     newFollows,                        // フォロワー増加数（日）= 新規フォロー
     0,                                 // フォロワー増加数（週）
-    data.url || `https://x.com/${data.accountId}/status/${data.postId}`,  // ツイートURL
-    data.postId                        // ポストID（追加列）
+    tweetUrl,                          // ツイートURL
+    analyticsUrl,                      // AnalyticsURL
+    data.postId                        // ポストID
   ];
 
   const lastRow = sheet.getLastRow();
@@ -887,12 +896,12 @@ function getExistingPostIds(sheet) {
   const postIds = new Map();
 
   if (lastRow > 1) {
-    // 19列目にポストIDがある想定（なければURLから抽出）
+    // 20列目にポストIDがある想定（なければURLから抽出）
     const numCols = sheet.getLastColumn();
 
-    if (numCols >= 19) {
+    if (numCols >= 20) {
       // ポストID列がある場合
-      const idColumn = sheet.getRange(2, 19, lastRow - 1, 1).getValues();
+      const idColumn = sheet.getRange(2, 20, lastRow - 1, 1).getValues();
       idColumn.forEach((row, index) => {
         if (row[0]) {
           postIds.set(row[0].toString(), index + 2);
