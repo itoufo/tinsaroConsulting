@@ -299,41 +299,38 @@
 
   <!-- 収集タブ -->
   <div id="tab-collect" class="tab-content active">
-    <div id="collectStatus" class="status info">アカウント名を入力してツイートを取得</div>
+    <div id="collectStatus" class="status info">アカウントを選択してタスクを読み込む</div>
 
     <div class="form-group">
-      <label>アカウント名（@なし）</label>
+      <label>アカウント</label>
       <div class="form-row">
-        <input type="text" id="username" placeholder="例: itoWalker" list="usernameList" autocomplete="off">
-        <datalist id="usernameList"></datalist>
-        <select id="days">
-          <option value="1">1日</option>
-          <option value="3">3日</option>
-          <option value="7" selected>7日</option>
-          <option value="14">14日</option>
-          <option value="30">30日</option>
+        <select id="accountSelect" style="flex: 2;">
+          <option value="">-- 読み込み中 --</option>
         </select>
+        <button id="refreshAccountsBtn" class="secondary" style="flex: 0; padding: 8px 10px;" title="アカウント一覧を更新">↻</button>
       </div>
     </div>
 
-    <button id="fetchTweetsBtn" class="primary" style="width: 100%;">ツイート一覧を取得</button>
+    <button id="loadTasksBtn" class="primary" style="width: 100%;">タスクを読み込む</button>
 
     <div id="tweetPreview" class="hidden" style="margin-top: 12px;">
       <div class="summary">
         <div class="summary-item">
           <div class="summary-value" id="tweetCount">0</div>
-          <div class="summary-label">ツイート数</div>
+          <div class="summary-label">合計</div>
         </div>
         <div class="summary-item">
           <div class="summary-value" id="pendingCount">0</div>
-          <div class="summary-label">未取得</div>
+          <div class="summary-label">未収集</div>
         </div>
         <div class="summary-item">
           <div class="summary-value" id="completedCount">0</div>
-          <div class="summary-label">取得済</div>
+          <div class="summary-label">収集済</div>
         </div>
       </div>
-      <button id="addToTasksBtn" class="success" style="width: 100%;">タスクに追加</button>
+      <p style="font-size: 11px; color: #8899a6; text-align: center; margin-top: 8px;">
+        タスクタブで未収集のポストを確認できます
+      </p>
     </div>
   </div>
 
@@ -412,6 +409,14 @@
       <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec">
     </div>
     <button id="saveSettingsBtn" class="primary" style="width: 100%;">設定を保存</button>
+
+    <div class="settings-section">
+      <div class="settings-title">アカウント設定</div>
+      <button id="openSettingsSheetBtn" class="secondary" style="width: 100%;">設定シートを開く</button>
+      <p style="font-size: 10px; color: #8899a6; margin-top: 6px;">
+        ※ 設定シートでアカウントと転記先スプレッドシートを管理します
+      </p>
+    </div>
 
     <div style="margin-top: 16px; font-size: 11px; color: #8899a6;">
       <p style="margin-bottom: 8px;">【使い方】</p>
