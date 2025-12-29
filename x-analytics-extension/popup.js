@@ -1,9 +1,15 @@
 // Popup スクリプト - タスク管理機能付き
 
+// ========== デバッグ ==========
+function debugLog(label, data) {
+  console.log(`[X-Analytics] ${label}:`, data);
+}
+
 // ========== 状態管理 ==========
 let tasks = [];
 let fetchedTweets = [];
 let currentPageData = null;
+let usernameHistory = [];
 
 // ========== DOM要素 ==========
 const tabs = document.querySelectorAll('.tab');
@@ -53,12 +59,42 @@ tabs.forEach(tab => {
 
 // ========== ストレージ ==========
 async function loadTasks() {
-  const result = await chrome.storage.local.get(['tasks', 'gasUrl']);
+  debugLog('loadTasks', 'Loading from storage...');
+  const result = await chrome.storage.local.get(['tasks', 'gasUrl', 'usernameHistory', 'lastUsername']);
+  debugLog('loadTasks result', result);
+
   tasks = result.tasks || [];
+  usernameHistory = result.usernameHistory || [];
+
   if (result.gasUrl) {
     gasUrlInput.value = result.gasUrl;
   }
+  if (result.lastUsername) {
+    usernameInput.value = result.lastUsername;
+  }
+
+  // ユーザー名履歴をdatalistに設定
+  updateUsernameDatalist();
   renderTasks();
+}
+
+function updateUsernameDatalist() {
+  const datalist = document.getElementById('usernameList');
+  if (datalist) {
+    datalist.innerHTML = usernameHistory.map(u => `<option value="${u}">`).join('');
+  }
+}
+
+async function saveUsernameToHistory(username) {
+  if (!username) return;
+
+  // 重複を除去して先頭に追加
+  usernameHistory = [username, ...usernameHistory.filter(u => u !== username)].slice(0, 10);
+  await chrome.storage.local.set({
+    usernameHistory: usernameHistory,
+    lastUsername: username
+  });
+  updateUsernameDatalist();
 }
 
 async function saveTasks() {
@@ -88,16 +124,23 @@ async function fetchTweets() {
   const username = usernameInput.value.trim();
   const days = daysSelect.value;
 
+  debugLog('fetchTweets', { username, days });
+
   if (!username) {
     showStatus(collectStatus, 'アカウント名を入力してください', 'error');
     return;
   }
 
   const gasUrl = gasUrlInput.value.trim();
+  debugLog('GAS URL', gasUrl);
+
   if (!gasUrl) {
     showStatus(collectStatus, 'GAS URLを設定してください', 'error');
     return;
   }
+
+  // ユーザー名を履歴に保存
+  await saveUsernameToHistory(username);
 
   fetchTweetsBtn.disabled = true;
   fetchTweetsBtn.textContent = '取得中...';
@@ -105,19 +148,41 @@ async function fetchTweets() {
 
   try {
     const url = `${gasUrl}?action=getTweets&username=${encodeURIComponent(username)}&days=${days}`;
+    debugLog('Fetching URL', url);
+
     const response = await fetch(url);
-    const data = await response.json();
+    debugLog('Response status', response.status);
+    debugLog('Response ok', response.ok);
+
+    const responseText = await response.text();
+    debugLog('Response text (raw)', responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      debugLog('JSON parse error', parseError);
+      throw new Error(`JSONパースエラー: ${responseText.substring(0, 200)}`);
+    }
+
+    debugLog('Parsed data', data);
 
     if (data.success) {
+      if (!data.tweets) {
+        debugLog('Warning', 'data.tweets is undefined');
+        throw new Error('tweets配列がレスポンスに含まれていません');
+      }
+
       fetchedTweets = data.tweets.map(t => ({
         ...t,
         accountId: username
       }));
 
+      debugLog('fetchedTweets', fetchedTweets);
+
       // 既存タスクとの重複チェック
       const existingIds = new Set(tasks.map(t => t.postId));
       const newTweets = fetchedTweets.filter(t => !existingIds.has(t.postId));
-      const completedInTasks = tasks.filter(t => t.status === 'completed').length;
 
       document.getElementById('tweetCount').textContent = fetchedTweets.length;
       document.getElementById('pendingCount').textContent = newTweets.length;
@@ -126,10 +191,12 @@ async function fetchTweets() {
       tweetPreview.classList.remove('hidden');
       showStatus(collectStatus, `${fetchedTweets.length}件のツイートを取得しました`, 'success');
     } else {
-      showStatus(collectStatus, `エラー: ${data.error}`, 'error');
+      debugLog('API returned error', data.error);
+      showStatus(collectStatus, `エラー: ${data.error || 'unknown error'}`, 'error');
       tweetPreview.classList.add('hidden');
     }
   } catch (error) {
+    debugLog('Fetch error', error);
     showStatus(collectStatus, `取得失敗: ${error.message}`, 'error');
     tweetPreview.classList.add('hidden');
   } finally {
