@@ -5,6 +5,10 @@
 // 設定用スプレッドシートID（ハードコーディング）
 const SETTINGS_SPREADSHEET_ID = '1SF4IBNl_7zD560zpt0Q0rq8WknVOxerYz1kuCfhcoUE';
 
+// フォロワー数一覧スプレッドシートID
+const FOLLOWER_LIST_SPREADSHEET_ID = '1CDLY39QuWYcMrZKjRYqUCHqglqh7-PVTlL0LEwiGGzQ';
+const FOLLOWER_LIST_SHEET_NAME = '一覧';
+
 // シート名
 const SHEET_NAME_SETTINGS = '設定';
 const SHEET_NAME_MANUAL = 'マニュアル';

@@ -55,6 +55,83 @@ function getSettingsUrl() {
 }
 
 /**
+ * フォロワー数一覧シートからデータを取得
+ * @returns {Object} { dateColumns: Map<string, number>, userRows: Map<string, number>, data: any[][] }
+ */
+function getFollowerListData() {
+  const ss = SpreadsheetApp.openById(FOLLOWER_LIST_SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(FOLLOWER_LIST_SHEET_NAME);
+
+  if (!sheet) {
+    throw new Error(`シート「${FOLLOWER_LIST_SHEET_NAME}」が見つかりません`);
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+
+  if (lastRow < 2 || lastCol < 6) {
+    throw new Error('フォロワー数一覧シートにデータがありません');
+  }
+
+  const allData = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+
+  // 1行目から日付列のマッピングを作成（F列=6列目以降）
+  const dateColumns = new Map();
+  const headerRow = allData[0];
+  for (let col = 5; col < headerRow.length; col++) {
+    const cellValue = headerRow[col];
+    if (cellValue instanceof Date) {
+      const dateKey = formatDate(cellValue);
+      dateColumns.set(dateKey, col);
+    } else if (typeof cellValue === 'string' && cellValue.match(/\d{4}\/\d{2}\/\d{2}/)) {
+      dateColumns.set(cellValue, col);
+    }
+  }
+
+  // 2行目以降からユーザー行のマッピングを作成（B列=ツイッターID）
+  const userRows = new Map();
+  for (let row = 1; row < allData.length; row++) {
+    const twitterId = allData[row][1]?.toString().trim();
+    if (twitterId) {
+      userRows.set(twitterId, row);
+    }
+  }
+
+  return { dateColumns, userRows, data: allData };
+}
+
+/**
+ * 特定ユーザーの特定日のフォロワー数を取得
+ * @param {Object} followerData - getFollowerListData()の戻り値
+ * @param {string} username - ツイッターID
+ * @param {Date} date - 日付
+ * @returns {number|null} フォロワー数（データがない場合はnull）
+ */
+function getFollowerCountByDate(followerData, username, date) {
+  const { dateColumns, userRows, data } = followerData;
+
+  const dateKey = formatDate(date);
+  const col = dateColumns.get(dateKey);
+  const row = userRows.get(username);
+
+  if (col === undefined || row === undefined) {
+    return null;
+  }
+
+  const value = data[row][col];
+  if (value === '' || value === null || value === undefined) {
+    return null;
+  }
+
+  // カンマ区切りの数値を処理
+  if (typeof value === 'string') {
+    return parseInt(value.replace(/,/g, ''), 10) || null;
+  }
+
+  return value;
+}
+
+/**
  * 全アカウントの転記先スプレッドシートへの権限を確認
  * 初回設定時に実行してください
  */

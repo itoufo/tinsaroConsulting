@@ -27,7 +27,11 @@ function monthlyFetch() {
   const { start, end } = getPreviousMonthRange();
   Logger.log(`取得期間: ${formatDate(start)} 〜 ${formatDate(end)}`);
 
-  processAllAccounts(accountSettings, start, end);
+  // フォロワー数一覧を取得
+  const followerData = getFollowerListData();
+  Logger.log(`フォロワー数一覧: ${followerData.userRows.size}アカウント, ${followerData.dateColumns.size}日分`);
+
+  processAllAccounts(accountSettings, start, end, followerData);
 }
 
 /**
@@ -60,7 +64,8 @@ function initialFetch() {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  processAllAccounts(accountSettings, weekAgo, now);
+  const followerData = getFollowerListData();
+  processAllAccounts(accountSettings, weekAgo, now, followerData);
 }
 
 /**
@@ -75,13 +80,14 @@ function manualFetch() {
  * @param {Map} accountSettings - アカウント設定
  * @param {Date} startTime - 開始日時
  * @param {Date} endTime - 終了日時
+ * @param {Object} followerData - フォロワー数一覧データ
  */
-function processAllAccounts(accountSettings, startTime, endTime) {
+function processAllAccounts(accountSettings, startTime, endTime, followerData) {
   accountSettings.forEach((config, username) => {
     try {
       Logger.log(`処理中: ${username} -> ${config.spreadsheetId}`);
       const ss = SpreadsheetApp.openById(config.spreadsheetId);
-      fetchAndSaveTweets(ss, username, startTime, endTime);
+      fetchAndSaveTweets(ss, username, startTime, endTime, followerData);
     } catch (error) {
       Logger.log(`エラー (${username}): ${error.message}`);
     }
@@ -95,14 +101,12 @@ function processAllAccounts(accountSettings, startTime, endTime) {
  * @param {string} username - ユーザー名
  * @param {Date} startTime - 開始日時
  * @param {Date} endTime - 終了日時
+ * @param {Object} followerData - フォロワー数一覧データ
  */
-function fetchAndSaveTweets(ss, username, startTime, endTime) {
+function fetchAndSaveTweets(ss, username, startTime, endTime, followerData) {
   // ユーザー情報取得
   const userId = getUserId(username);
   Logger.log(`ユーザーID (${username}): ${userId}`);
-
-  const currentFollowers = getFollowerCount(userId);
-  Logger.log(`フォロワー数 (${username}): ${currentFollowers}`);
 
   // ツイート取得
   const tweets = getTweets(userId, startTime, endTime);
@@ -122,7 +126,7 @@ function fetchAndSaveTweets(ss, username, startTime, endTime) {
     const sampleDate = new Date(monthTweets[0].created_at);
     const sheet = getOrCreateMonthlySheet(ss, username, sampleDate);
 
-    saveTweetsToSheet(sheet, monthTweets, username, currentFollowers);
+    saveTweetsToSheet(sheet, monthTweets, username, followerData);
   }
 }
 
@@ -152,11 +156,10 @@ function groupTweetsByMonth(tweets, username) {
  * @param {Sheet} sheet - シート
  * @param {Object[]} tweets - ツイート配列
  * @param {string} username - ユーザー名
- * @param {number} currentFollowers - 現在のフォロワー数
+ * @param {Object} followerData - フォロワー数一覧データ
  */
-function saveTweetsToSheet(sheet, tweets, username, currentFollowers) {
+function saveTweetsToSheet(sheet, tweets, username, followerData) {
   const existingUrls = getExistingTweetUrls(sheet);
-  const weeklyFollowerIncrease = getWeeklyFollowerIncrease(sheet, currentFollowers);
   const newRows = [];
 
   tweets.forEach(tweet => {
@@ -165,6 +168,9 @@ function saveTweetsToSheet(sheet, tweets, username, currentFollowers) {
 
     const metrics = tweet.public_metrics;
     const createdAt = new Date(tweet.created_at);
+
+    // 投稿日のフォロワー数を取得
+    const followerCount = getFollowerCountByDate(followerData, username, createdAt) || '';
 
     newRows.push([
       tweet.id,                                              // ポストID
@@ -181,11 +187,11 @@ function saveTweetsToSheet(sheet, tweets, username, currentFollowers) {
       metrics.retweet_count || 0,                            // RT数
       metrics.reply_count || 0,                              // リプ数
       '',                                                    // リプした数
-      currentFollowers,                                      // フォロワー数
+      followerCount,                                         // フォロワー数（投稿日時点）
       '',                                                    // フォロー率
       '',                                                    // フォロー率判定
       '',                                                    // フォロワー増加数（日）
-      weeklyFollowerIncrease,                                // フォロワー増加数（週）
+      '',                                                    // フォロワー増加数（週）
       tweetUrl,                                              // ツイートURL
       `https://x.com/i/account_analytics/content/${tweet.id}` // AnalyticsURL
     ]);

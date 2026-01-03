@@ -211,7 +211,7 @@ function initializeManualSheet(ss) {
     [''],
     ['【実行関数】'],
     ['・initialize: 初期設定（設定・マニュアルシートを作成）'],
-    ['・dailyFetch: 過去24時間のツイートを取得（トリガー用）'],
+    ['・monthlyFetch: 前月分のツイートを取得（毎月1日トリガー用）'],
     ['・initialFetch: 過去7日分のツイートを取得（初回用）'],
     ['・recalculateMetrics: プロクリ率・フォロー率を再計算'],
     ['・verifyAllPermissions: 権限確認'],
