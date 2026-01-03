@@ -13,10 +13,10 @@ function initialize() {
 }
 
 /**
- * 毎日実行用の関数（トリガーで呼び出し）
- * 過去24時間のツイートを取得
+ * 月次実行用の関数（毎月月初にトリガーで呼び出し）
+ * 前月分のツイートを取得
  */
-function dailyFetch() {
+function monthlyFetch() {
   const accountSettings = getAccountSettings();
 
   if (accountSettings.size === 0) {
@@ -24,10 +24,26 @@ function dailyFetch() {
     return;
   }
 
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const { start, end } = getPreviousMonthRange();
+  Logger.log(`取得期間: ${formatDate(start)} 〜 ${formatDate(end)}`);
 
-  processAllAccounts(accountSettings, yesterday, now);
+  processAllAccounts(accountSettings, start, end);
+}
+
+/**
+ * 前月の期間（月初0:00〜月末23:59:59）を取得
+ * @returns {Object} { start: Date, end: Date }
+ */
+function getPreviousMonthRange() {
+  const now = new Date();
+
+  // 前月の1日 0:00:00
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+
+  // 前月の最終日 23:59:59
+  const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+  return { start, end };
 }
 
 /**
@@ -51,7 +67,7 @@ function initialFetch() {
  * 手動実行用（テスト）
  */
 function manualFetch() {
-  dailyFetch();
+  monthlyFetch();
 }
 
 /**
